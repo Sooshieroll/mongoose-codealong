@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const { commentSchema } = require('./comment');
 
 
 //Schema is bascially model (it is a declaration of what your model is going to look like - like a blueprint for your model)
@@ -17,11 +16,11 @@ const postSchema = new mongoose.Schema({
     title: String,
     body: String,
     // embedded 
-    comments: [commentSchema],
+    // comments: [commentSchema],
     // reference
-    refComments: [{
+    comments: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Comments'
+        ref: 'Comment'
     }]
 });
 

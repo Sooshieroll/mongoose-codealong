@@ -3,8 +3,8 @@ const app = express();
 const mongoose = require('mongoose');
 const Post = require('./schemas/post');
 const User = require('./schemas/user');
-const { Comment } = require('./schemas/comment');
-const comment = require('./schemas/comment');
+// const { Comment } = require('./schemas/comment');
+const Comment = require('./schemas/comment');
 
 const mongoDb = 'mongodb://127.0.0.1/mongoose-codealong';
 mongoose.connect(mongoDb, { useNewUrlParser: true });
@@ -20,7 +20,7 @@ db.on('error', (error) => {
     console.log(`Database Error: ${error}`);
 })
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false })); // this allows us to use req.body
 
 // Mongoose fetch statements
 
@@ -118,7 +118,7 @@ app.delete('/users/:email', (req, res) => {
         })
 });
 
-// POSTS
+// ====================== POSTS ROUTES ========================
 
 app.get('/posts', (req, res) => {
     Post.find({})
@@ -132,16 +132,14 @@ app.get('/posts', (req, res) => {
         });
 });
 
-app.get('/posts/:title', (req, res) => {
-    const postTitle = new Post({
-        title: req.params.title
-    })
-    console.log('find post by', req.params.title)
-    Post.findOne({
-        title: req.params.title
-    })
+
+app.get('/posts/:id', (req, res) => {
+
+    console.log('find post by ID', req.params.id);
+
+    Post.findById(req.params.id)
         .then(post => {
-            console.log('Here is the post', req.params.title);
+            console.log('Here is the post', post);
             res.json({ post: post });
         })
         .catch(error => {
@@ -150,39 +148,36 @@ app.get('/posts/:title', (req, res) => {
         });
 });
 
-// app.post('/posts', (req, res) => {
-//     Post.create({
-//         title: req.params.title,
-//         body: req.params.body,
-//         comments: req.params.comments,
-//         refComments: [{
-//             type: mongoose.Schema.Types.String,
-//             ref: 'Comments'
-//         }]
-//     }
-//     )
-//         .then(post => {
-//             console.log('New post =>>', post);
-//             res.json({ post: post });
-//         })
-//         .catch(error => {
-//             console.log('error', error)
-//             res.json({ message: "Error ocurred, please try again" })
-//         });
-// })
+app.post('/posts', (req, res) => {
+    Post.create({
+        title: req.body.title,
+        body: req.body.body,
+        comments: req.params.comments,
+    })
+        .then(post => {
+            console.log('New post =>>', post);
+            res.json({ post: post });
+        })
+        .catch(error => {
+            console.log('error', error)
+            res.json({ message: "Error ocurred, please try again" })
+        });
+})
 
-app.put('/posts/:title', (req, res) => {
+app.put('/posts/:id', (req, res) => {
     console.log('route is being on PUT')
-    Post.findOne({ title: req.params.title })
+    Post.findById(req.params.id)
         .then(foundPost => {
             console.log('Post found', foundPost);
-            User.findOneAndUpdate({ title: req.params.title },
-                {
-                    title: req.body.title ? req.body.title : foundPost.title,
-                })
+            Post.findByIdAndUpdate(req.params.id, {
+                title: req.body.title ? req.body.title : foundPost.title,
+                body: req.body.body ? req.body.body : foundPost.body
+            }, {
+                upsert: true
+            })
                 .then(post => {
                     console.log('Post was updated', post);
-                    res.redirect(`/posts/${req.params.title}`)
+                    res.redirect(`/posts/${req.params.id}`)
                 })
                 .catch(error => {
                     console.log('error', error)
@@ -196,11 +191,11 @@ app.put('/posts/:title', (req, res) => {
 
 });
 
-app.delete('/post/:title', (req, res) => {
-    Post.findOneAndRemove({ title: req.params.title })
+app.delete('/posts/:id', (req, res) => {
+    Post.findByIdAndDelete(req.params.id)
         .then(response => {
             console.log('This was deleted', response);
-            res.json({ message: `${req.params.title} was deleted` });
+            res.json({ message: `Post ${req.params.id} was deleted` });
         })
         .catch(error => {
             console.log('error', error)
@@ -208,10 +203,10 @@ app.delete('/post/:title', (req, res) => {
         })
 });
 
-// COMMENTS
+// ====================== COMMENTS ROUTES ========================
 
 app.get('/comments', (req, res) => {
-    Comment.find({})
+    Comment.find()
         .then(comments => {
             console.log('All comments', comments);
             res.json({ comments: comments });
@@ -222,16 +217,14 @@ app.get('/comments', (req, res) => {
         });
 });
 
-app.get('/comments/:header', (req, res) => {
-    const commentHeader = new Comment({
-        header: req.params.header
-    })
-    console.log('find comment by', req.params.header)
+app.get('/comments/:id', (req, res) => {
+    console.log('find comment by ID', req.params.id)
+    // console.log(mongoose.Types.ObjectId(req.params.id))
     Comment.findOne({
-        header: req.params.header
+        _id: mongoose.Types.ObjectId(req.params.id)
     })
-        .then(post => {
-            console.log('Here is the comment', req.params.header);
+        .then(comment => {
+            console.log('Here is the comment', comment);
             res.json({ comment: comment });
         })
         .catch(error => {
@@ -240,23 +233,53 @@ app.get('/comments/:header', (req, res) => {
         });
 });
 
-// Post Comment
+app.get('/posts/:id/comments', (req, res) => {
+    Post.findById(req.params.id).populate('comments').exec()
+        .then(post => {
+            console.log('Hey this is the post', post);
+        })
+})
 
+app.post('/posts/:id/comments', (req, res) => {
+    Post.findById(req.params.id)
+        .then(post => {
+            console.log('Heyyy, this is the post', post);
+            // create and pust comment inside of post
+            Comment.create({
+                header: req.body.header,
+                content: req.body.content
+            })
+                .then(comment => {
+                    post.comments.push(comment);
+                    // save the post
+                    post.save();
+                    res.redirect(`/posts/${req.params.id}`);
+                })
+                .catch(error => {
+                    console.log('error', error);
+                    res.json({ message: "Error ocurred, please try again" });
+                });
+        })
+        .catch(error => {
+            console.log('error', error);
+            res.json({ message: "Error ocurred, please try again" });
+        });
+});
 
-
-
-app.put('/comments/:header', (req, res) => {
+app.put('/comments/:id', (req, res) => {
     console.log('route is being on PUT')
-    Comment.findOne({ header: req.params.header })
+    Comment.findById(req.params.id)
         .then(foundComment => {
             console.log('Comment found', foundComment);
-            User.findOneAndUpdate({ header: req.params.header },
-                {
-                    header: req.body.header ? req.body.header : foundComment.header,
-                })
+            Comment.findByIdAndUpdate(req.params.id, {
+                header: req.body.header ? req.body.header : foundComment.header,
+                content: req.body.content ? req.body.content : foundComment.content,
+            }, {
+                upsert: true
+            })
                 .then(comment => {
                     console.log('Comment was updated', comment);
-                    res.redirect(`/comments/${req.params.header}`)
+                    res.redirect(`/comments/${req.params.id}`);
                 })
                 .catch(error => {
                     console.log('error', error)
@@ -267,14 +290,16 @@ app.put('/comments/:header', (req, res) => {
             console.log('error', error)
             res.json({ message: "Error ocurred, please try again" })
         })
-
 });
 
-app.delete('/comment/:header', (req, res) => {
-    Comment.findOneAndRemove({ header: req.params.header })
+
+
+
+app.delete('/comment/:id', (req, res) => {
+    Comment.findByIdAndRemove(req.params.id)
         .then(response => {
             console.log('This was deleted', response);
-            res.json({ message: `${req.params.header} was deleted` });
+            res.json({ message: `${req.params.id} was deleted` });
         })
         .catch(error => {
             console.log('error', error)
